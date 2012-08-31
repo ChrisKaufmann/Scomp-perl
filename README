@@ -1,13 +1,15 @@
 Small utility for batch diffing of files on multiple remote machines
 Perl version
 
-usage: scomp [-h|--help] [-d|--debug] [-f|--filename <filename>] [-u|--username user] /path/to/remote/file
+usage: scomp [-h|--help] [-d|--debug] [-f|--filename <filename>] [-u|--username user] [-s|--sudo] /path/to/remote/file
 
 Defaults to running as same user on remote systems as is run as.
 
 Example:
 	./spork -d -u root -f myhostsfile /etc/hosts
-    	will go to all the hosts listed in myhostsfile and compare those files
+    	will go to all the hosts listed in myhostsfile and compare the /etc/hosts files
+	grep staging serverlist | spork -u chris -s /home/project/.bashrc
+		will go to all the servers matching staging in serverlist, and use sudo to compare the .bashrc of the project user
 
 Download:
  bash < <(curl -s https://raw.github.com/ChrisKaufmann/scomp-perl/master/getscomp.sh)

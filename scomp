@@ -2,7 +2,6 @@
 use warnings;
 use strict;
 use Getopt::Long qw(:config bundling);
-use Switch;
 
 my $username=getlogin || getpwuid($<);
 my $filename="";
@@ -54,6 +53,7 @@ sub run_looped
 	warn "Running in serial because of no threadeach library\n" if $iserr;
 	my %host_lines=();
 	my $longest_ary=0;
+	my $difference_count=0;
 	foreach my $line(@lines)
 	{
 		my @tmp_ary=get_lines($line);
@@ -66,22 +66,28 @@ sub run_looped
 		my %hsh=();
 		foreach my $host(@lines)
 		{
-			push(@{$hsh{@{$host_lines{$host}}[$i]}},$host) ;
+			my $tmp_line=@{$host_lines{$host}}[$i]?@{$host_lines{$host}}[$i]:"";
+			push(@{$hsh{$tmp_line}},$host) ;
 		}
 		my $keyzero=(keys(%hsh))[0];
 		my $numdiff=scalar(@{$hsh{$keyzero}});
 		next if $numdiff==scalar(@lines);
+		$difference_count++;
 		print $i."\t";
 		print map { "$_ @{$hsh{$_}}\n\t" } keys %hsh;
 		print "\n";
 	}
 	print Dumper \%host_lines if $debug;
+	if(!$difference_count)
+	{
+		print "Files identical, $longest_ary lines long\n";
+	}
 }
 
 sub get_lines
 {
 	my $host=shift;
-	my $ifsudo='sudo' if $sudo;
+	my $ifsudo=$sudo?'sudo':'';
 	my @tmp_lines=`ssh $username\@$host '$ifsudo cat $command'`;
 	chomp(@tmp_lines);
 	@tmp_lines=map{ $a=$_;$a =~ s/^\s+//;$a =~ s/\s+$//; $a if $a  } @tmp_lines;
