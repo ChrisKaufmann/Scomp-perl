@@ -1,0 +1,104 @@
+#!/usr/bin/env perl
+use warnings;
+use strict;
+use Getopt::Long qw(:config bundling);
+use Switch;
+
+my $username=getlogin || getpwuid($<);
+my $filename="";
+my $debug	=0;
+
+GetOptions (
+	'username|u=s'	=> \$username,
+	'filename|f=s'	=> \$filename,
+	'debug|d:1'		=> \$debug,
+	'help|h'		=> \&usage,
+	);
+
+my $command=shift || usage();
+
+#check for passed values - which will be used as a list of machine names in lieu of the filename arg
+my @lines=();
+if(!-t STDIN){@lines=<>;}
+if(!@lines)
+{
+	open(F,$filename)
+		or die("Couldn't open file $filename for reading: $!\n");
+	@lines=<F>;
+	close(F)
+		or die("Couldn't close filehandle for $filename: $!\n");
+}
+if(!@lines){warn "No machine names found\n";usage();}
+
+#get rid of newlines, empty lines, and whitespace in lines
+chomp(@lines);
+@lines=map{$a=$_;$a=~s/\s+//g;$a}@lines;
+my @tmp=();foreach my $l(@lines){push(@tmp,$l) if $l;}
+@lines=@tmp;
+
+print "username=$username, filename=$filename, command=$command\n" if $debug;
+print "Host list:".join(",",@lines)."\n" if $debug;
+
+#get the difference between the longest and shortest one (for pretty formatting)
+my $longest=(sort(map {length($_)}@lines))[-1];
+
+#actually run through, get the files into arrays and compare them
+run_looped();
+
+sub run_looped
+{
+	my $iserr=shift ||0;
+	use Data::Dumper;
+	warn "Running in serial because of no threadeach library\n" if $iserr;
+	my %host_lines=();
+	my $longest_ary=0;
+	foreach my $line(@lines)
+	{
+		my @tmp_ary=get_lines($line);
+		$longest_ary=$#tmp_ary>$longest_ary?$#tmp_ary:$longest_ary;
+		$host_lines{$line}=\@tmp_ary
+	}
+	for my $i(0..$longest_ary)
+	{
+		my $tmp;
+		my %hsh=();
+		foreach my $host(@lines)
+		{
+			my $val=
+			push(@{$hsh{@{$host_lines{$host}}[$i]}},$host) ;
+		}
+		print $i." ";
+		print map { "$_ @{$hsh{$_}}\n" } keys %hsh;
+		print "\n";
+	}
+	print Dumper \%host_lines;
+}
+
+sub get_lines
+{
+	my $host=shift;
+	my @tmp_lines=`ssh $username\@$host 'cat $command'`;
+	chomp(@tmp_lines);
+	@tmp_lines=map{ $a=$_; $a if $a  } @tmp_lines;
+	return @tmp_lines;
+}
+
+sub usage
+{
+	print <<cEND;
+Usage: $0 -f <filename> "command to run on remote host"
+Options:
+  -u/--username username to run as
+  -t/--threaded Whether to run as threaded, optionally with the # of threads, or -1 to run all
+  -f/--filename filename to use as list of hosts
+Example:
+  $0 -d -t 8 -u root -f myhostsfile "uptime"
+    will go to all the hosts listed in myhostsfile and run the "uptime" command with max 8 parallel threads
+  grep nameserver /etc/resolv.conf | awk '{print \$2}' | $0 'host google.com'
+    will go to all the nameservers in resolv.conf one at a time and run 'host google.com' on them
+  ./$0 -f hostlist -t-1 -uroot uptime
+    will go to all machines in "hostlist" and run "uptime" with as many parallel threads as there are hosts
+cEND
+
+exit();
+}
