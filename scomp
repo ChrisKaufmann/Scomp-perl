@@ -7,11 +7,13 @@ use Switch;
 my $username=getlogin || getpwuid($<);
 my $filename="";
 my $debug	=0;
+my $sudo	=0;
 
 GetOptions (
 	'username|u=s'	=> \$username,
 	'filename|f=s'	=> \$filename,
 	'debug|d:1'		=> \$debug,
+	'sudo|s:1'		=> \$sudo,
 	'help|h'		=> \&usage,
 	);
 
@@ -64,22 +66,25 @@ sub run_looped
 		my %hsh=();
 		foreach my $host(@lines)
 		{
-			my $val=
 			push(@{$hsh{@{$host_lines{$host}}[$i]}},$host) ;
 		}
-		print $i." ";
-		print map { "$_ @{$hsh{$_}}\n" } keys %hsh;
+		my $keyzero=(keys(%hsh))[0];
+		my $numdiff=scalar(@{$hsh{$keyzero}});
+		next if $numdiff==scalar(@lines);
+		print $i."\t";
+		print map { "$_ @{$hsh{$_}}\n\t" } keys %hsh;
 		print "\n";
 	}
-	print Dumper \%host_lines;
+	print Dumper \%host_lines if $debug;
 }
 
 sub get_lines
 {
 	my $host=shift;
-	my @tmp_lines=`ssh $username\@$host 'cat $command'`;
+	my $ifsudo='sudo' if $sudo;
+	my @tmp_lines=`ssh $username\@$host '$ifsudo cat $command'`;
 	chomp(@tmp_lines);
-	@tmp_lines=map{ $a=$_; $a if $a  } @tmp_lines;
+	@tmp_lines=map{ $a=$_;$a =~ s/^\s+//;$a =~ s/\s+$//; $a if $a  } @tmp_lines;
 	return @tmp_lines;
 }
 
@@ -91,6 +96,7 @@ Options:
   -u/--username username to run as
   -t/--threaded Whether to run as threaded, optionally with the # of threads, or -1 to run all
   -f/--filename filename to use as list of hosts
+  -s/--sudo use sudo to get the file contents
 Example:
   $0 -d -t 8 -u root -f myhostsfile "uptime"
     will go to all the hosts listed in myhostsfile and run the "uptime" command with max 8 parallel threads
